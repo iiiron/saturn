@@ -3,9 +3,9 @@ package net.noboard.saturn;
 import java.util.*;
 
 
-public class DataChannel<T> {
+public class DataChannel<T> implements Iterator<T> {
 
-    private DataPool<T> dataPool;
+    private final DataPool<T> dataPool;
 
     /**
      * 默认分页长度
@@ -20,21 +20,21 @@ public class DataChannel<T> {
     /**
      * 分页长度
      */
-    private int holdPageSize;
+    private final int holdPageSize;
 
-    private Map<Integer, Map<Integer, T>> cacheData;
+    private final Map<Integer, Map<Integer, T>> cacheData;
 
-    private ArrayDeque<Integer> cachePageDeque;
+    private final ArrayDeque<Integer> cachePageDeque;
+
+    private int index = 0;
+
+    private boolean hasNext;
 
     private DataChannel(DataPool<T> dataPool, int pageSize) {
         this.dataPool = dataPool;
         this.cacheData = new HashMap<>();
         this.cachePageDeque = new ArrayDeque<>();
         this.holdPageSize = pageSize;
-    }
-
-    public DataReader<T> reader() {
-        return new DataReader<T>(this);
     }
 
     public static <T> DataChannel<T> connect(DataPool<T> dataPool, int pageSize) {
@@ -45,16 +45,11 @@ public class DataChannel<T> {
         return new DataChannel<>(dataPool, DEFAULT_HOLD_PAGE_SIZE);
     }
 
-    synchronized DataInfo<T> get(int index) {
-        if (index == 0) {
-            dataPool.beforeFirstReadElement();
-        }
-
+    private synchronized DataInfo<T> get(int index) {
         int pageNum = calcPage(index, holdPageSize);
 
         Map<Integer, T> pageData = loadPageData(pageNum);
         if (pageData == null) {
-            dataPool.afterLastReadElement(pageNum, holdPageSize, index);
             return null;
         }
 
@@ -67,10 +62,6 @@ public class DataChannel<T> {
             }
         } else if ((pageData.size() - 1) > calcRelativeIndex(index, holdPageSize)) {
             hasNext = true;
-        }
-
-        if (!hasNext) {
-            dataPool.afterLastReadElement(pageNum, holdPageSize, index + 1);
         }
 
         return new DataInfo<>(pageData.get(index), hasNext);
@@ -118,5 +109,38 @@ public class DataChannel<T> {
 
     private int calcRelativeIndex(int index, int pageSize) {
         return index - ((int) (index / pageSize)) * pageSize;
+    }
+
+    @Override
+    public boolean hasNext() {
+        if (index == 0) {
+            dataPool.beforeFirstElementRead();
+            if (this.get(index) == null) {
+                hasNext = false;
+                dataPool.afterLastElementRead(calcPage(index, holdPageSize), holdPageSize, index);
+            } else {
+                hasNext = true;
+            }
+        }
+
+        return hasNext;
+    }
+
+    @Override
+    public T next() {
+        DataInfo<T> dataInfo = this.get(this.index);
+        if (dataInfo == null) {
+            throw new IndexOutOfBoundsException("Index: " + index);
+        }
+
+        hasNext = dataInfo.isHasNext();
+
+        if (!hasNext) {
+            dataPool.afterLastElementRead(calcPage(index, holdPageSize), holdPageSize, index + 1);
+        }
+
+        this.index++;
+
+        return dataInfo.getData();
     }
 }

@@ -15,13 +15,13 @@ import java.util.stream.Collectors;
  */
 public class Saturn<T> {
 
-    private LinkedList<DataReader<T>> dataReaders = new LinkedList<>();
+    private final LinkedList<DataChannel<T>> dataReaders = new LinkedList<>();
 
     private int index = -1;
 
-    private DataReader<T> current;
+    private DataChannel<T> current;
 
-    private Integer pageSize = 100;
+    private final Integer pageSize = 100;
 
     @SafeVarargs
     private Saturn(Integer pageSize, DataPool<T>... dataPools) {
@@ -34,9 +34,9 @@ public class Saturn<T> {
                 continue;
             }
             if (pageSize == null || pageSize <= 0) {
-                dataReaders.addLast(DataChannel.connect(dataPool, this.pageSize).reader());
+                dataReaders.addLast(DataChannel.connect(dataPool, this.pageSize));
             } else {
-                dataReaders.addLast(DataChannel.connect(dataPool, pageSize).reader());
+                dataReaders.addLast(DataChannel.connect(dataPool, pageSize));
             }
         }
     }

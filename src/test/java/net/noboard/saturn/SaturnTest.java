@@ -4,6 +4,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 
 public class SaturnTest {
@@ -78,5 +80,28 @@ public class SaturnTest {
         Assert.assertTrue(com.containsAll(result));
         Assert.assertTrue(result.containsAll(com));
         Assert.assertEquals(com.size(), result.size());
+    }
+
+    @Test
+    public void test4() {
+
+        Saturn<Object> saturn = Saturn.connect(new DataPool<Object>() {
+            @Override
+            public Collection<Object> read(int pageNum, int pageSize) {
+                return null;
+            }
+
+            @Override
+            public void afterLastElementRead(int pageNum, int pageSize, int count) {
+                System.out.println("Override afterLastElementRead");
+            }
+
+            @Override
+            public void beforeFirstElementRead() {
+                System.out.println("Override beforeFirstElementRead");
+            }
+        });
+
+        saturn.forEach().forEach(o -> {});
     }
 }

@@ -34,12 +34,12 @@ public class MyDataPool implements DataPool<String> {
     }
 
     @Override
-    public void afterLastReadElement(int pageNum, int pageSize, int count) {
+    public void afterLastElementRead(int pageNum, int pageSize, int count) {
         System.out.println("afterReadLastElement：pageNum=" + pageNum + ", pageSize=" + pageSize + ", count=" + count);
     }
 
     @Override
-    public void beforeFirstReadElement() {
+    public void beforeFirstElementRead() {
         System.out.println("beforeReadFirstElement");
     }
 }
