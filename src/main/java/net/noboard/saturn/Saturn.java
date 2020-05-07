@@ -21,7 +21,9 @@ public class Saturn<T> {
 
     private DataChannel<T> current;
 
-    private final Integer pageSize = 100;
+    private static final int DEFAULT_PAGE_SIZE = 100;
+
+    private Integer pageSize;
 
     @SafeVarargs
     private Saturn(Integer pageSize, DataPool<T>... dataPools) {
@@ -33,11 +35,12 @@ public class Saturn<T> {
             if (dataPool == null) {
                 continue;
             }
-            if (pageSize == null || pageSize <= 0) {
-                dataReaders.addLast(DataChannel.connect(dataPool, this.pageSize));
+            if (pageSize != null && pageSize > 0) {
+                this.pageSize = pageSize;
             } else {
-                dataReaders.addLast(DataChannel.connect(dataPool, pageSize));
+                this.pageSize = DEFAULT_PAGE_SIZE;
             }
+            dataReaders.addLast(DataChannel.connect(dataPool, this.pageSize));
         }
     }
 

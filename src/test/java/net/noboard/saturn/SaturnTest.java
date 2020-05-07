@@ -32,13 +32,13 @@ public class SaturnTest {
 
     @Test
     public void test2() {
-        MyDataPool myDataPool = new MyDataPool("A", -1);
+        MyDataPool myDataPool = new MyDataPool("A", 1000);
         MyDataPool myDataPool2 = new MyDataPool("B", -1);
         MyDataPool myDataPool3 = new MyDataPool("C", -1);
 
         List<String> result = new ArrayList<>();
-        for (List<String> s : Saturn.connect(7, myDataPool, myDataPool2, myDataPool3)
-                .forEachBatchToList()) {
+        for (List<String> s : Saturn.connect(1000, myDataPool, myDataPool2, myDataPool3)
+                .forEachBatchToList(100)) {
             result.addAll(s);
         }
 
