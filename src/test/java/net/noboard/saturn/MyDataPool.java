@@ -8,7 +8,10 @@ public class MyDataPool implements DataPool<String> {
 
     private List<String> data;
 
+    private String tip;
+
     public MyDataPool(String tip, int count) {
+        this.tip = tip;
         data = new ArrayList<>();
         for (int i = 0; i <= count; i++) {
             data.add(i + tip);
@@ -35,11 +38,11 @@ public class MyDataPool implements DataPool<String> {
 
     @Override
     public void afterLastElementRead(int pageNum, int pageSize, int count) {
-        System.out.println("afterReadLastElement：pageNum=" + pageNum + ", pageSize=" + pageSize + ", count=" + count);
+        System.out.println(tip + " afterReadLastElement：pageNum=" + pageNum + ", pageSize=" + pageSize + ", count=" + count);
     }
 
     @Override
     public void beforeFirstElementRead() {
-        System.out.println("beforeReadFirstElement");
+        System.out.println(tip + " beforeReadFirstElement");
     }
 }

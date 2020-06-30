@@ -17,10 +17,6 @@ public class Saturn<T> {
 
     private final LinkedList<DataChannel<T>> dataReaders = new LinkedList<>();
 
-    private int index = -1;
-
-    private DataChannel<T> current;
-
     private static final int DEFAULT_PAGE_SIZE = 100;
 
     private Integer pageSize;
@@ -87,17 +83,7 @@ public class Saturn<T> {
     }
 
     public Iterable<T> forEach() {
-        return () -> new Iterator<T>() {
-            @Override
-            public boolean hasNext() {
-                return checkNext();
-            }
-
-            @Override
-            public T next() {
-                return current.next();
-            }
-        };
+        return () -> new Itr(dataReaders);
     }
 
     public <R, A> Iterable<R> forEachBatch(int size, Collector<? super T, A, R> collector) {
@@ -105,26 +91,7 @@ public class Saturn<T> {
             throw new IllegalArgumentException("batch size must be a positive integer");
         }
 
-        return () -> new Iterator<R>() {
-            @Override
-            public boolean hasNext() {
-                return checkNext();
-            }
-
-            @Override
-            public R next() {
-                int i = 0;
-                A container = collector.supplier().get();
-                while (checkNext() && i++ < size) {
-                    collector.accumulator().accept(container, current.next());
-                }
-                if (collector.characteristics().contains(Collector.Characteristics.IDENTITY_FINISH)) {
-                    return (R) container;
-                } else {
-                    return collector.finisher().apply(container);
-                }
-            }
-        };
+        return () -> new Itr4Collection<>(size, collector, dataReaders);
     }
 
     public <R, A> Iterable<R> forEachBatch(Collector<? super T, A, R> collector) {
@@ -147,30 +114,96 @@ public class Saturn<T> {
         return forEachBatch(size, Collectors.toSet());
     }
 
-    private boolean checkNext() {
-        do {
-            if (isCurrentHasNext()) {
-                return true;
-            }
-        } while (toNextReader());
+    /**
+     * 元素遍历器
+     */
+    private class Itr implements Iterator<T> {
 
-        return false;
-    }
+        private final LinkedList<DataChannel<T>> dataReaders;
 
-    private boolean isCurrentHasNext() {
-        if (current == null) {
+        private int index = -1;
+
+        private Iterator<T> current;
+
+        public Itr(LinkedList<DataChannel<T>> dataReaders) {
+            this.dataReaders = dataReaders;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return checkNext();
+        }
+
+        @Override
+        public T next() {
+            return current.next();
+        }
+
+        private boolean checkNext() {
+            do {
+                if (isCurrentHasNext()) {
+                    return true;
+                }
+            } while (toNextReader());
+
             return false;
         }
 
-        return current.hasNext();
+        private boolean isCurrentHasNext() {
+            if (this.current == null) {
+                return false;
+            }
+
+            return this.current.hasNext();
+        }
+
+        private boolean toNextReader() {
+            if ((this.index + 1) < this.dataReaders.size()) {
+                this.current = this.dataReaders.get(++this.index).iterator();
+                return true;
+            } else {
+                return false;
+            }
+        }
+
     }
 
-    private boolean toNextReader() {
-        if ((index + 1) < dataReaders.size()) {
-            current = dataReaders.get(++index);
-            return true;
-        } else {
-            return false;
+    /**
+     * 元素
+     * @param <R>
+     * @param <A>
+     */
+    private class Itr4Collection<R,A> implements Iterator<R> {
+
+        private final Collector<? super T, A, R> collector;
+
+        private final int size;
+
+        private final Iterator<T> iterator;
+
+        public Itr4Collection(int size, Collector<? super T, A, R> collector, LinkedList<DataChannel<T>> dataReaders) {
+            this.collector = collector;
+            this.size = size;
+            iterator = new Itr(dataReaders);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+
+        @Override
+        public R next() {
+            int i = 0;
+            A container = this.collector.supplier().get();
+            while (this.iterator.hasNext() && i++ < this.size) {
+                this.collector.accumulator().accept(container, this.iterator.next());
+            }
+            if (this.collector.characteristics().contains(Collector.Characteristics.IDENTITY_FINISH)) {
+                return (R) container;
+            } else {
+                return collector.finisher().apply(container);
+            }
         }
     }
 }

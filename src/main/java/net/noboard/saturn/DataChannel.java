@@ -3,7 +3,7 @@ package net.noboard.saturn;
 import java.util.*;
 
 
-public class DataChannel<T> implements Iterator<T> {
+public class DataChannel<T> implements Iterable<T> {
 
     private final DataPool<T> dataPool;
 
@@ -112,35 +112,59 @@ public class DataChannel<T> implements Iterator<T> {
     }
 
     @Override
-    public boolean hasNext() {
-        if (index == 0) {
-            dataPool.beforeFirstElementRead();
-            if (this.get(index) == null) {
-                hasNext = false;
-                dataPool.afterLastElementRead(calcPage(index, holdPageSize), holdPageSize, index);
-            } else {
-                hasNext = true;
-            }
-        }
-
-        return hasNext;
+    public Iterator<T> iterator() {
+        return new Itr();
     }
 
-    @Override
-    public T next() {
-        DataInfo<T> dataInfo = this.get(this.index);
-        if (dataInfo == null) {
-            throw new IndexOutOfBoundsException("Index: " + index);
+    private class Itr implements Iterator<T> {
+
+        private int index = 0;
+
+        private boolean hasNext;
+
+        private boolean isTriggerFirstAction = false;
+
+        private boolean isTriggerLastAction = false;
+
+        @Override
+        public boolean hasNext() {
+            if (index == 0) {
+                if (!isTriggerFirstAction) {
+                    isTriggerFirstAction = true;
+                    dataPool.beforeFirstElementRead();
+                }
+
+                if (get(index) == null) {
+                    hasNext = false;
+                    if (!isTriggerLastAction) {
+                        isTriggerLastAction = true;
+                        dataPool.afterLastElementRead(calcPage(index, holdPageSize), holdPageSize, index);
+                    }
+                } else {
+                    hasNext = true;
+                }
+            }
+
+            return hasNext;
         }
 
-        hasNext = dataInfo.isHasNext();
+        @Override
+        public T next() {
+            DataInfo<T> dataInfo = get(this.index);
+            if (dataInfo == null) {
+                throw new IndexOutOfBoundsException("Index: " + index);
+            }
 
-        if (!hasNext) {
-            dataPool.afterLastElementRead(calcPage(index, holdPageSize), holdPageSize, index + 1);
+            hasNext = dataInfo.isHasNext();
+
+            if (!hasNext && !isTriggerLastAction) {
+                isTriggerLastAction = true;
+                dataPool.afterLastElementRead(calcPage(index, holdPageSize), holdPageSize, index + 1);
+            }
+
+            this.index++;
+
+            return dataInfo.getData();
         }
-
-        this.index++;
-
-        return dataInfo.getData();
     }
 }
