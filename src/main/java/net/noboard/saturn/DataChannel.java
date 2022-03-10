@@ -1,21 +1,14 @@
 package net.noboard.saturn;
 
 import java.util.*;
-
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 public class DataChannel<T> implements Iterable<T> {
 
     private final DataPool<T> dataPool;
 
-    /**
-     * 默认分页长度
-     */
-    private final static int DEFAULT_HOLD_PAGE_SIZE = 100;
-
-    /**
-     * 持有数据总页数
-     */
-    private final static int HOLD_PAGES = 2;
+    private final int concurrentReadNum;
 
     /**
      * 分页长度
@@ -26,23 +19,16 @@ public class DataChannel<T> implements Iterable<T> {
 
     private final ArrayDeque<Integer> cachePageDeque;
 
-    private int index = 0;
-
-    private boolean hasNext;
-
-    private DataChannel(DataPool<T> dataPool, int pageSize) {
+    private DataChannel(DataPool<T> dataPool, int pageSize, int concurrentReadNum) {
         this.dataPool = dataPool;
         this.cacheData = new HashMap<>();
         this.cachePageDeque = new ArrayDeque<>();
         this.holdPageSize = pageSize;
+        this.concurrentReadNum = concurrentReadNum;
     }
 
-    public static <T> DataChannel<T> connect(DataPool<T> dataPool, int pageSize) {
-        return new DataChannel<>(dataPool, pageSize);
-    }
-
-    public static <T> DataChannel<T> connect(DataPool<T> dataPool) {
-        return new DataChannel<>(dataPool, DEFAULT_HOLD_PAGE_SIZE);
+    public static <T> DataChannel<T> connect(DataPool<T> dataPool, int pageSize, int concurrentReadNum) {
+        return new DataChannel<>(dataPool, pageSize, concurrentReadNum);
     }
 
     private synchronized DataInfo<T> get(int index) {
@@ -68,33 +54,44 @@ public class DataChannel<T> implements Iterable<T> {
     }
 
     private Map<Integer, T> loadPageData(int pageNum) {
-        Map<Integer, T> pageData = cacheData.get(pageNum);
-        if (pageData == null) {
-            Collection<T> data = dataPool.read(pageNum, holdPageSize);
-            if (data == null || data.size() == 0) {
-                return null;
+        if (cacheData.get(pageNum) == null) {
+            List<CompletableFuture<Map<Integer, T>>> completableFutures = new ArrayList<>();
+            for (int i = 0; i < concurrentReadNum; i++) {
+                int currentPageNum = pageNum + i;
+                completableFutures.add(CompletableFuture.supplyAsync(() -> {
+                    Collection<T> data = dataPool.read(currentPageNum, holdPageSize);
+                    if (data == null || data.size() == 0) {
+                        return null;
+                    }
+
+                    Map<Integer, T> pageDataTamp = new HashMap<>();
+                    int index = (currentPageNum - 1) * holdPageSize;
+                    for (T t : data) {
+                        pageDataTamp.put(index++, t);
+                    }
+                    return pageDataTamp;
+                }));
             }
 
-            pageData = new HashMap<>();
-            int i = (pageNum - 1) * holdPageSize;
-            for (T t : data) {
-                pageData.put(i++, t);
+            for (int i = 0; i < concurrentReadNum; i++) {
+                try {
+                    cacheData.put(pageNum + i, completableFutures.get(i).get());
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+                cachePageDeque.addLast(pageNum + i);
             }
-
-            cacheData.put(pageNum, pageData);
-
-            cachePageDeque.addLast(pageNum);
 
             while (true) {
                 // todo 先简单的实现一个，完整的功能需要考虑更多，包括并发，多线程，缓存效率等因素
-                if (cacheData.size() > HOLD_PAGES) {
+                if (cacheData.size() - 1 > concurrentReadNum) {
                     this.cacheData.remove(cachePageDeque.pollFirst());
                 } else {
                     break;
                 }
             }
         }
-        return pageData;
+        return cacheData.get(pageNum);
     }
 
     /**

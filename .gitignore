@@ -48,4 +48,4 @@ log/
 /rebel.xml
 
 !rent-crm-allocation-web/src/
-
+.DS_Store

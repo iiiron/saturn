@@ -19,24 +19,23 @@ public class Saturn<T> {
 
     private static final int DEFAULT_PAGE_SIZE = 100;
 
+    private static final int DEFAULT_CONCURRENT_READ_NUM = 1;
+
     private Integer pageSize;
 
     @SafeVarargs
-    private Saturn(Integer pageSize, DataPool<T>... dataPools) {
+    private Saturn(int pageSize, int concurrentReadNum, DataPool<T>... dataPools) {
         if (dataPools == null || dataPools.length == 0) {
             return;
         }
+
+        this.pageSize = pageSize;
 
         for (DataPool<T> dataPool : dataPools) {
             if (dataPool == null) {
                 continue;
             }
-            if (pageSize != null && pageSize > 0) {
-                this.pageSize = pageSize;
-            } else {
-                this.pageSize = DEFAULT_PAGE_SIZE;
-            }
-            dataReaders.addLast(DataChannel.connect(dataPool, this.pageSize));
+            dataReaders.addLast(DataChannel.connect(dataPool, pageSize, concurrentReadNum));
         }
     }
 
@@ -53,13 +52,25 @@ public class Saturn<T> {
             throw new IllegalArgumentException("page size must be a positive integer");
         }
 
-        return new Saturn<T>(pageSize, dataPools);
+        return new Saturn<T>(pageSize, DEFAULT_CONCURRENT_READ_NUM ,dataPools);
+    }
+
+    @SafeVarargs
+    public static <T> Saturn<T> connect(int pageSize, int concurrentReadNum, DataPool<T>... dataPools) {
+        if (pageSize <= 0) {
+            throw new IllegalArgumentException("page size must be a positive integer");
+        }
+        if (concurrentReadNum <= 0) {
+            throw new IllegalArgumentException("concurrentReadNum size must be a positive integer");
+        }
+
+        return new Saturn<T>(pageSize, concurrentReadNum ,dataPools);
     }
 
 
     @SafeVarargs
     public static <T> Saturn<T> connect(DataPool<T>... dataPools) {
-        return new Saturn<T>(null, dataPools);
+        return new Saturn<T>(DEFAULT_PAGE_SIZE, DEFAULT_CONCURRENT_READ_NUM, dataPools);
     }
 
     public <R, A> R getAll(Collector<? super T, A, R> collector) {

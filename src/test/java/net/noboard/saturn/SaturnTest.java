@@ -16,7 +16,7 @@ public class SaturnTest {
         MyDataPool myDataPool3 = new MyDataPool("C", 100);
 
         List<String> result = new ArrayList<>();
-        for (String s : Saturn.connect(10, myDataPool, myDataPool2, myDataPool3).forEach()) {
+        for (String s : Saturn.connect(10, 10, myDataPool, myDataPool2, myDataPool3).forEach()) {
             result.add(s);
         }
 

@@ -25,6 +25,7 @@ public class MyDataPool implements DataPool<String> {
 
     @Override
     public Collection<String> read(int pageNum, int pageSize) {
+        System.out.println("read " + tip + ", pageNum=" + pageNum + "pageSize=" + pageSize);
         int start = (pageNum - 1) * pageSize;
         List<String> result = new ArrayList<>();
         for (int i = 0; i < pageSize; i++) {
